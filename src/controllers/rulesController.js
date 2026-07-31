@@ -1,0 +1,6 @@
+import { sharedRuleManager } from '../services/dpiEngine.js';
+export function listRules(_req, res) { res.json(sharedRuleManager.toJSON()); }
+export function addRule(req, res) { const { type, value } = req.body; mutate(type, value, 'add'); res.status(201).json(sharedRuleManager.toJSON()); }
+export function removeRule(req, res) { const { type, value } = req.body; mutate(type, value, 'remove'); res.json(sharedRuleManager.toJSON()); }
+export function clearRules(_req, res) { sharedRuleManager.clearAll(); res.json(sharedRuleManager.toJSON()); }
+function mutate(type, value, op) { if (!type || value === undefined) throw Object.assign(new Error('type and value are required'), { status: 400 }); const add = op === 'add'; if (type === 'ip') return add ? sharedRuleManager.blockIP(value) : sharedRuleManager.unblockIP(value); if (type === 'app') return add ? sharedRuleManager.blockApp(value) : sharedRuleManager.unblockApp(value); if (type === 'domain') return add ? sharedRuleManager.blockDomain(value) : sharedRuleManager.unblockDomain(value); if (type === 'port') return add ? sharedRuleManager.blockPort(value) : sharedRuleManager.unblockPort(value); throw Object.assign(new Error('type must be ip, app, domain, or port'), { status: 400 }); }
