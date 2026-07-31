@@ -1,0 +1,14 @@
+import { promises as fs } from 'node:fs';
+import { AppType, ipIntToString, ipStringToInt } from '../utils/types.js';
+export class RuleManager { constructor() { this.blockedIps = new Set(); this.blockedApps = new Set(); this.blockedDomains = new Set(); this.domainPatterns = new Set(); this.blockedPorts = new Set(); }
+  blockIP(ip) { this.blockedIps.add(typeof ip === 'number' ? ip >>> 0 : ipStringToInt(ip)); } unblockIP(ip) { this.blockedIps.delete(typeof ip === 'number' ? ip >>> 0 : ipStringToInt(ip)); } isIPBlocked(ip) { return this.blockedIps.has(ip >>> 0); } getBlockedIPs() { return [...this.blockedIps].map(ipIntToString); }
+  blockApp(app) { this.blockedApps.add(app); } unblockApp(app) { this.blockedApps.delete(app); } isAppBlocked(app) { return this.blockedApps.has(app); } getBlockedApps() { return [...this.blockedApps]; }
+  blockDomain(domain) { const d = domain.toLowerCase(); (d.includes('*') ? this.domainPatterns : this.blockedDomains).add(d); } unblockDomain(domain) { const d = domain.toLowerCase(); this.blockedDomains.delete(d); this.domainPatterns.delete(d); } isDomainBlocked(domain='') { const d = domain.toLowerCase(); if (this.blockedDomains.has(d)) return true; return [...this.domainPatterns].some((p) => p.startsWith('*.') && (d === p.slice(2) || d.endsWith(p.slice(1)))); } getBlockedDomains() { return [...this.blockedDomains, ...this.domainPatterns]; }
+  blockPort(port) { this.blockedPorts.add(Number(port)); } unblockPort(port) { this.blockedPorts.delete(Number(port)); } isPortBlocked(port) { return this.blockedPorts.has(Number(port)); }
+  shouldBlock({ srcIp, dstPort, app = AppType.UNKNOWN, domain = '' }) { if (this.isIPBlocked(srcIp)) return { type: 'IP', detail: ipIntToString(srcIp) }; if (this.isPortBlocked(dstPort)) return { type: 'PORT', detail: String(dstPort) }; if (this.isAppBlocked(app)) return { type: 'APP', detail: app }; if (domain && this.isDomainBlocked(domain)) return { type: 'DOMAIN', detail: domain }; return null; }
+  getStats() { return { blockedIps: this.blockedIps.size, blockedApps: this.blockedApps.size, blockedDomains: this.blockedDomains.size + this.domainPatterns.size, blockedPorts: this.blockedPorts.size }; }
+  clearAll() { this.blockedIps.clear(); this.blockedApps.clear(); this.blockedDomains.clear(); this.domainPatterns.clear(); this.blockedPorts.clear(); }
+  toJSON() { return { blockedIps: this.getBlockedIPs(), blockedApps: this.getBlockedApps(), blockedDomains: this.getBlockedDomains(), blockedPorts: [...this.blockedPorts] }; }
+  async saveRules(filename) { await fs.writeFile(filename, JSON.stringify(this.toJSON(), null, 2)); }
+  async loadRules(filename) { const data = JSON.parse(await fs.readFile(filename, 'utf8')); this.clearAll(); data.blockedIps?.forEach((x) => this.blockIP(x)); data.blockedApps?.forEach((x) => this.blockApp(x)); data.blockedDomains?.forEach((x) => this.blockDomain(x)); data.blockedPorts?.forEach((x) => this.blockPort(x)); }
+}
